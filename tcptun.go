@@ -16,7 +16,9 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
 	"net"
+	"strconv"
 	//	"os"
 	//	"log"
 	"time"
@@ -103,4 +105,15 @@ func tcptun() {
 		}
 
 	}
+}
+
+//StrtoInt strings to int
+func StrtoInt(a string) int {
+
+	b, error := strconv.Atoi(a)
+	if error != nil {
+		log.Println("string to int fail")
+
+	}
+	return b
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -14,20 +15,30 @@ var uplinked uplink
 
 func (u uplink) init() {
 
-	if conf.server == true {
-		log.Println("start tcptun server ")
-		go u.StartServer()
+	switch conf.protocol {
 
-	} else {
-		log.Println("start tcptun client ,connect to  ", conf.serveraddr)
-		go u.conntoserver()
+	case "tcp":
+
+		if conf.server == true {
+			log.Println("start tcptun server ")
+			go u.startTCPServer()
+
+		} else {
+			log.Println("start tcptun client ,connect to  ", conf.leftaddr)
+			go u.conntoserver()
+		}
+
+	case "udp":
+		go u.startUDPServer()
+		go u.startUDPClient()
+
 	}
 
 }
 
 func (u uplink) conntoserver() {
 	for {
-		conn, err := net.Dial("tcp", conf.serveraddr)
+		conn, err := net.Dial("tcp", conf.leftaddr)
 		if err != nil {
 			log.Println("connect to server  err: ", err)
 			time.Sleep(time.Second * 30)
@@ -106,10 +117,75 @@ func (u uplink) conntoserver() {
 
 }
 
-//StartServer StartServer
-func (u uplink) StartServer() {
+func (u uplink) startUDPClient() {
 
-	service := ":" + conf.tcpport //strconv.Itoa(port);
+	addr, err := net.ResolveUDPAddr("udp", conf.rightaddr)
+	if err != nil {
+		fmt.Println("Can't resolve address: ", err)
+		os.Exit(1)
+	}
+
+	conn, err := net.DialUDP("udp", nil, addr)
+	if err != nil {
+		fmt.Println("Can't dial: ", err)
+		os.Exit(1)
+	}
+	defer conn.Close()
+
+	for {
+		_, err = conn.Write([]byte(<-packetchanR))
+		if err != nil {
+			fmt.Println("failed:", err)
+			continue
+		}
+	}
+}
+
+func (u uplink) startUDPServer() {
+	// 创建监听
+
+	addr, err := net.ResolveUDPAddr("udp", conf.leftaddr)
+	if err != nil {
+		fmt.Println("Can't resolve address: ", err)
+		os.Exit(1)
+	}
+
+	log.Println("UDP Listening:", conf.port)
+	socket, err := net.ListenUDP("udp4", addr)
+	// socket, err := net.ListenUDP("udp4", &net.UDPAddr{
+	// 	IP:   net.IPv4(0, 0, 0, 0),
+	// 	Port: StrtoInt(conf.port),
+	// })
+	if err != nil {
+		fmt.Println("UDP Listening  error !", err)
+		return
+	}
+	defer socket.Close()
+
+	for {
+		// 读取数据
+		data := make([]byte, 4096)
+		lenght, _, err := socket.ReadFromUDP(data)
+
+		if err != nil {
+			fmt.Println("UDP read data error!", err)
+			continue
+		}
+
+		// if ip.IP.String() != conf.clientaddr {
+		// 	continue
+		// }
+
+		packetchanS <- data[:lenght]
+
+	}
+
+}
+
+//StartServer StartServer
+func (u uplink) startTCPServer() {
+
+	service := ":" + conf.port //strconv.Itoa(port);
 
 	l, err := net.Listen("tcp", service)
 	if err != nil {
@@ -118,7 +194,7 @@ func (u uplink) StartServer() {
 	}
 
 	for {
-		log.Println("tcptun server  Listening...:", conf.tcpport)
+		log.Println("tcptun server  Listening...:", conf.port)
 		conn, err := l.Accept()
 		if err != nil {
 			log.Println("tcptun server  Listening error :", err)
