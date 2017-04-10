@@ -12,33 +12,32 @@ import (
 type uplink string
 
 var uplinked uplink
+var udpaddr *net.UDPAddr
 
 func (u uplink) init() {
 
-	switch conf.protocol {
-
-	case "tcp":
-
-		if conf.server == true {
-			log.Println("start tcptun server ")
+	if conf.server == true {
+		log.Println("start tcptun server ")
+		if conf.protocol == "tcp" {
 			go u.startTCPServer()
-
 		} else {
-			log.Println("start tcptun client ,connect to  ", conf.leftaddr)
-			go u.conntoserver()
+			go u.startUDPServer()
 		}
 
-	case "udp":
-		go u.startUDPServer()
-		go u.startUDPClient()
-
+	} else {
+		log.Println("start tcptun client ,connect to  ", conf.serveraddr)
+		if conf.protocol == "tcp" {
+			go u.conntoserver()
+		} else {
+			go u.startUDPClient()
+		}
 	}
 
 }
 
 func (u uplink) conntoserver() {
 	for {
-		conn, err := net.Dial("tcp", conf.leftaddr)
+		conn, err := net.Dial("tcp", conf.serveraddr)
 		if err != nil {
 			log.Println("connect to server  err: ", err)
 			time.Sleep(time.Second * 30)
@@ -61,9 +60,9 @@ func (u uplink) conntoserver() {
 			}
 		}()
 
-		log.Println("connected tcptun server :", conn.RemoteAddr().String())
+		log.Println("connected tcptun TCP server :", conn.RemoteAddr().String())
 
-		buf := make([]byte, 8192)
+		buf := make([]byte, 4096)
 		//	tmpbuf := make([]byte, 0, 16384)
 		for {
 
@@ -78,35 +77,6 @@ func (u uplink) conntoserver() {
 
 			packetchanS <- buf[:lenght]
 
-			/*
-				if lenght > 0 {
-					tmpbuf = append(tmpbuf, buf[:lenght]...)
-				} else {
-					//	time.Sleep(time.Microsecond * 500)
-					continue
-				}
-
-				for len(tmpbuf) >= 4 {
-				}
-				packetlenght := tools.BytestoInt(tmpbuf[:4])
-
-				if packetlenght == 0 {
-					//	fmt.Println("send heart 0000")
-					tmpbuf = tmpbuf[4:]
-
-				} else {
-
-					if len(tmpbuf) >= packetlenght+4 {
-
-						packetchan <- tmpbuf[:lenght+4] //送去转发
-
-						tmpbuf = tmpbuf[packetlenght+4:]
-					} else {
-						break
-					}
-				}
-
-			*/
 		}
 
 	}
@@ -119,7 +89,7 @@ func (u uplink) conntoserver() {
 
 func (u uplink) startUDPClient() {
 
-	addr, err := net.ResolveUDPAddr("udp", conf.rightaddr)
+	addr, err := net.ResolveUDPAddr("udp", conf.serveraddr)
 	if err != nil {
 		fmt.Println("Can't resolve address: ", err)
 		os.Exit(1)
@@ -132,25 +102,42 @@ func (u uplink) startUDPClient() {
 	}
 	defer conn.Close()
 
-	for {
-		_, err = conn.Write([]byte(<-packetchanR))
-		if err != nil {
-			fmt.Println("failed:", err)
-			continue
+	log.Println("connected tcptun UDP server :", conn.RemoteAddr().String())
+
+	go func() {
+
+		data := make([]byte, 1500)
+		for {
+			lenght, _ := conn.Read(data)
+			// if err != nil {
+			// 	fmt.Println("failed to read UDP msg because of ", err)
+			// 	continue
+			// }
+
+			packetchanS <- data[:lenght]
 		}
+
+	}()
+
+	for {
+		_, _ = conn.Write([]byte(<-packetchanR))
+		// if err != nil {
+		// 	fmt.Println("failed:", err)
+		// 	continue
+		// }
 	}
 }
 
 func (u uplink) startUDPServer() {
 	// 创建监听
 
-	addr, err := net.ResolveUDPAddr("udp", conf.leftaddr)
+	addr, err := net.ResolveUDPAddr("udp", conf.serveraddr)
 	if err != nil {
 		fmt.Println("Can't resolve address: ", err)
 		os.Exit(1)
 	}
 
-	log.Println("UDP Listening:", conf.port)
+	log.Println("UDP Listening:", conf.serveraddr)
 	socket, err := net.ListenUDP("udp4", addr)
 	// socket, err := net.ListenUDP("udp4", &net.UDPAddr{
 	// 	IP:   net.IPv4(0, 0, 0, 0),
@@ -158,19 +145,33 @@ func (u uplink) startUDPServer() {
 	// })
 	if err != nil {
 		fmt.Println("UDP Listening  error !", err)
-		return
+		os.Exit(1)
 	}
 	defer socket.Close()
 
+	var lenght int
+	//var udperr error
+
+	go func() {
+		for {
+
+			_, _ = socket.WriteToUDP([]byte(<-packetchanR), udpaddr)
+			// if err != nil {
+			// 	fmt.Println("send udp packet to client failed:", err)
+			// 	continue
+			// }
+		}
+	}()
+
 	for {
 		// 读取数据
-		data := make([]byte, 4096)
-		lenght, _, err := socket.ReadFromUDP(data)
+		data := make([]byte, 8192)
+		lenght, udpaddr, _ = socket.ReadFromUDP(data)
 
-		if err != nil {
-			fmt.Println("UDP read data error!", err)
-			continue
-		}
+		// if udperr != nil {
+		// 	fmt.Println("UDP read data error!", udperr)
+		// 	continue
+		// }
 
 		// if ip.IP.String() != conf.clientaddr {
 		// 	continue
@@ -185,19 +186,19 @@ func (u uplink) startUDPServer() {
 //StartServer StartServer
 func (u uplink) startTCPServer() {
 
-	service := ":" + conf.port //strconv.Itoa(port);
+	//	service := ":" + conf.port //strconv.Itoa(port);
 
-	l, err := net.Listen("tcp", service)
+	l, err := net.Listen("tcp", conf.serveraddr)
 	if err != nil {
 		log.Println("tcptun server Listening error", err)
 		os.Exit(1)
 	}
 
 	for {
-		log.Println("tcptun server  Listening...:", conf.port)
+		log.Println("tcptun server TCP  Listening...:", conf.serveraddr)
 		conn, err := l.Accept()
 		if err != nil {
-			log.Println("tcptun server  Listening error :", err)
+			log.Println("tcptun server TCP Listening error :", err)
 			os.Exit(1)
 		}
 
@@ -209,7 +210,7 @@ func (u uplink) startTCPServer() {
 
 func (u *uplink) handler(conn net.Conn) {
 
-	log.Println("tcptun client is connected from :", conn.RemoteAddr().String())
+	log.Println("tcptun client is connected from whth TCP:", conn.RemoteAddr().String())
 	buf := make([]byte, 8192)
 	//	tmpbuf := make([]byte, 0, 2048)
 

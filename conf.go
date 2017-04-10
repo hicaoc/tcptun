@@ -10,11 +10,11 @@ import (
 )
 
 type config struct {
-	server        bool
-	protocol      string
-	port          string
-	leftaddr      string
-	rightaddr     string
+	server   bool
+	protocol string
+	//	port          string
+	serveraddr string
+	//	clientaddr    string
 	interfacename string
 }
 
@@ -36,11 +36,10 @@ func (c *config) readconffile() {
 		log.Println("open tcptun.ini file err:", err)
 		fmt.Println(`
 server=true 
-protocol=tcp
-port=9999
-leftaddr=10.0.0.1:9999
-rightaddr=22.33.44.55:9999
-interfacename=tun100
+protocol=udp
+serveraddr=10.140.0.2:9999
+interfacename=tun10
+
 	
 `)
 		os.Exit(1)
@@ -68,8 +67,6 @@ interfacename=tun100
 			if s[1] == "true" {
 				c.server = true
 			}
-		case "port":
-			c.port = s[1]
 
 		case "protocol":
 			c.protocol = s[1]
@@ -77,11 +74,8 @@ interfacename=tun100
 		case "interfacename":
 			c.interfacename = s[1]
 
-		case "leftaddr":
-			c.leftaddr = s[1]
-
-		case "clientaddr":
-			c.rightaddr = s[1]
+		case "serveraddr":
+			c.serveraddr = s[1]
 
 		}
 

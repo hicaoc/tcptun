@@ -50,7 +50,7 @@ func tcptun() {
 	}
 	defer tun.Close()
 
-	buf := make([]byte, 8192)
+	buf := make([]byte, 4096)
 
 	go func() {
 		for {
