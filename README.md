@@ -1,2 +1,2 @@
 # tcptun
-a tunnel with  tcp  
+a tunnel with  tcp/udp
