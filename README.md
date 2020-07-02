@@ -3,9 +3,9 @@ a tunnel with  tcp/udp
 
 For k8s cross-regional, cross-cloud environment, intranet interoperability
 
-用于 k8s 跨区域，跨云环境下，内网互通。
+用于 k8s 跨区域，跨云环境下，内网互通。基于TCP/UDP,可以穿越NAT，多重NAT环境，只需要一个开放端口。
 
-# 跨区服务器内网通信
+# 跨区跨云服务器内网通信
 
 - gihtup网址:https://github.com/hicaoc/tcptun
 
