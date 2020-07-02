@@ -1,5 +1,9 @@
 # tcptun
-a tunnel with  tcp/udp
+a tunnel with  tcp/udp  
+
+For k8s cross-regional, cross-cloud environment, intranet interoperability
+
+用于 k8s 跨区域，跨云环境下，内网互通。
 
 # 跨区服务器内网通信
 
